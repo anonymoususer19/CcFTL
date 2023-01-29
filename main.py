@@ -32,7 +32,7 @@ def main(net1, net2):
         "min_mae": min_mae,
         "min_mse": min_mse,
         "model": net1.module.state_dict() if type(net1) is nn.parallel.DistributedDataParallel else net1.state_dict(),
-        'optimizer': optimizer.state_dict()
+        'optimizer': optimizer1.state_dict()
     }
     chkpt2 = {
         "step": 0,
@@ -41,13 +41,13 @@ def main(net1, net2):
         "max_r": max_r,
         "max_f": max_f,
         "model": net2.module.state_dict() if type(net2) is nn.parallel.DistributedDataParallel else net2.state_dict(),
-        'optimizer': optimizer.state_dict()
+        'optimizer': optimizer2.state_dict()
     }
 
     for step in range(1, args.steps + 1):
         if not args.is_master:
-            net1 = local_train_1(net1, optimizer, regression_criterion, classifier_criterion, miss_data_loader_train, step, args)
-            net2 = local_train_2(net2, optimizer, classifier_criterion, data_loader_train, step, args)
+            net1 = local_train_1(net1, optimizer1, regression_criterion, classifier_criterion, miss_data_loader_train, step, args)
+            net2 = local_train_2(net2, optimizer2, classifier_criterion, data_loader_train, step, args)
 
         model1, model2 = global_communicate(net1, net2, dist, args)
 
@@ -58,13 +58,13 @@ def main(net1, net2):
             if test_mse < min_mse:
                 min_mae = test_mae
                 min_mse = test_mse
-                chkpt1 = {"step": step, "epochs": args.epochs, "min_mse": min_mse, "min_mae": min_mae,"model": model1.module.state_dict() if type(model1) is nn.parallel.DistributedDataParallel else model1.state_dict(),'optimizer': optimizer.state_dict()}
+                chkpt1 = {"step": step, "epochs": args.epochs, "min_mse": min_mse, "min_mae": min_mae,"model": model1.module.state_dict() if type(model1) is nn.parallel.DistributedDataParallel else model1.state_dict(),'optimizer': optimizer1.state_dict()}
 
             if test_f > max_f:
                 max_p = test_p
                 max_r = test_r
                 max_f = test_f
-                chkpt2 = {"step": step, "epochs": args.epochs, "max_p": max_p, "max_r": max_r, "max_f": max_f, "model": model2.module.state_dict() if type(model2) is nn.parallel.DistributedDataParallel else model2.state_dict(),'optimizer': optimizer.state_dict()}
+                chkpt2 = {"step": step, "epochs": args.epochs, "max_p": max_p, "max_r": max_r, "max_f": max_f, "model": model2.module.state_dict() if type(model2) is nn.parallel.DistributedDataParallel else model2.state_dict(),'optimizer': optimizer2.state_dict()}
 
     if not os.path.exists(args.DARKL_checkpoint_path):
         os.makedirs(args.DARKL_checkpoint_path)
@@ -104,6 +104,8 @@ if __name__ == "__main__":
 
     if not args.is_master:
         data = pd.read_csv(args.data_dir, encoding = 'utf-8')
+        data = data.rename(columns={'jd_pin_num':'miss_label'})
+        data['domain_label'] = dist.get_rank() - 1
 
         data_y = data['label']
         data_x = data.drop(['label', 'domain_label'], axis=1)
@@ -148,7 +150,8 @@ if __name__ == "__main__":
     DARKL = first_Model(45, 256, 128, 64, 32, 64, 1, args.world_size - 1).to(args.device)
     UTP = ClassifierModel(46, 128, 64, 5).to(args.device)
 
-    optimizer = optim.SGD(net.parameters(), lr = args.lr)
+    optimizer1 = optim.SGD(DARKL.parameters(), lr = args.lr)
+    optimizer2 = optim.SGD(UTP.parameters(), lr = args.lr)
     regression_criterion = nn.MSELoss()
     classifier_criterion = nn.NLLLoss()
 
