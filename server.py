@@ -41,4 +41,4 @@ def global_communicate(model1, model2, dist, args):
                 b_param = b_param.to(args.device)
             param *= 0
             param.set_(b_param)
-    return model1. model2
+    return model1, model2
