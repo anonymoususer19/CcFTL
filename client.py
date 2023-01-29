@@ -86,7 +86,7 @@ def local_train_2(net, optimizer, classifier_criterion, train_dataloader, step, 
     return net
 
 
-def local_test_1(model, classifier_criterion, test_dataloader, args):
+def local_test_2(model, classifier_criterion, test_dataloader, args):
     with torch.no_grad():
         model.eval()
         test_predicts = []
@@ -112,6 +112,3 @@ def local_test_1(model, classifier_criterion, test_dataloader, args):
 
 if __name__ == "__main__":
     pass
-
-
-
